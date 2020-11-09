@@ -19,12 +19,12 @@ import copy
 Node = Any
 Position = Iterable[float]
 
-def node_list_to_edges(node_list: Iterable[Node],
-                       is_ring: bool = True):
+
+def node_list_to_edges(node_list: Iterable[Node], is_ring: bool = True):
     """
     Takes a list of connected nodes, such that node[i] is connected
     to node[i - 1] and node[i + 1] and turn it into a set of edges.
-    
+
     Parameters
     ----------
     node_list
@@ -48,8 +48,7 @@ def node_list_to_edges(node_list: Iterable[Node],
         offset = -1
     for i in range(list_size + offset):
         next_index = (i + 1) % list_size
-        edges.add(frozenset([node_list[i],
-                             node_list[next_index]]))
+        edges.add(frozenset([node_list[i], node_list[next_index]]))
     return frozenset(edges)
 
 
@@ -115,10 +114,10 @@ def calculate_segment(angle: float, num_segments: int) -> int:
     return segment_idx
 
 
-def calculate_neighbours(positions: np.array, cutoff:Optional[float] = None):
+def calculate_neighbours(positions: np.array, cutoff: Optional[float] = None):
     """
     Calculate all the neighbours of points within a cutoff.
-    
+
     Parameters
     ----------
     positions
@@ -137,16 +136,17 @@ def calculate_neighbours(positions: np.array, cutoff:Optional[float] = None):
         cutoff = np.inf
     distances = scipy.spatial.distance.pdist(positions)
     distances = scipy.spatial.distance.squareform(distances)
-    
+
     within_cutoff = np.argwhere(distances < cutoff)
     pairwise_cutoffs = within_cutoff[:, 0] < within_cutoff[:, 1]
     return distances, within_cutoff[pairwise_cutoffs]
+
 
 def calculate_faces(G: nx.Graph):
     is_planar, embedding = nx.check_planarity(G, counterexample=True)
     if not is_planar:
         raise RuntimeError("Expected a planar graph.")
-    
+
     seen_edges = set()
     faces = set()
     for v, w in embedding.edges():
@@ -155,7 +155,8 @@ def calculate_faces(G: nx.Graph):
         face = embedding.traverse_face(v, w, mark_half_edges=seen_edges)
         faces.add(tuple(face))
     return faces
-    
+
+
 class PREDLayout:
     """
     Implementation of PRED, a graph drawing algorithm that preserves edge crossings.
@@ -175,7 +176,7 @@ class PREDLayout:
         desired_length: float = 1.0,
         max_distance_to_virtual: float = 1.0,
         num_zones: int = 8,
-        gravity_force_scale: float = 0.0
+        gravity_force_scale: float = 0.0,
     ) -> None:
         """
         Initialise the layout algorithm.
@@ -234,23 +235,25 @@ class PREDLayout:
 
         # Precomputation region here.
         self._bounding_edges = self._calculate_bounding_edges()
-        
+
         # These should get changed every step as part of the update
         # loop, and are cached here.
         self._distances, self._node_pairs = calculate_neighbours(self.positions)
         self._virtual_nodes = self._precompute_virtual_nodes()
-        
-    def _precompute_virtual_nodes(self) -> Dict[Tuple[Node, Node, Node], Tuple[Position, bool, float]]:
+
+    def _precompute_virtual_nodes(
+        self,
+    ) -> Dict[Tuple[Node, Node, Node], Tuple[Position, bool, float]]:
         """
         Precompute a set of virtual nodes, which are projections of real nodes onto lines.
-        
+
         Returns
         -------
         virtual_nodes
             The data structure returned takes a key of (node, edge_u, edge_v)
             and returns a tuple of (virtual_position, within_line, distance_to_virtual)
         """
-        
+
         virtual_nodes = {}
         for node in self.G.nodes():
             node_pos = self.positions[node]
@@ -258,21 +261,21 @@ class PREDLayout:
                 assert node not in (u, v), "Nodes cannot interact with their own edges"
                 line_u = self.positions[u]
                 line_v = self.positions[v]
-    
+
                 proj_pos, within_line = _project_onto_line(node_pos, line_u, line_v)
                 distance_to_proj = np.linalg.norm(node_pos - proj_pos)
                 if np.isclose(distance_to_proj, 0.0):
                     raise RuntimeError(f"{node} lies along the edge ({u}, {v})")
                 virtual_nodes[node, u, v] = proj_pos, within_line, distance_to_proj
         return virtual_nodes
-                
+
     def _calculate_bounding_edges(self):
         """
         Calculate a set of 'bounding edges' for each node.
 
         The set of bounding edges is the edges that can be reached without
         crossing any other edges.
-        
+
         Returns
         -------
         bounding_edges
@@ -311,12 +314,10 @@ class PREDLayout:
             pos[label] = self.positions[node]
         return pos
 
-    def _calculate_node_attractions(
-        self, exponent: float = None
-    ) -> np.array:
+    def _calculate_node_attractions(self, exponent: float = None) -> np.array:
         """
         Calculate the forces due to node attractions.
-        
+
         Nodes are only attracted to their neighbouring nodes.
         This is given by the formula
         F(u, v) = d(u, v)/ delta * (x(v) - x(u))
@@ -332,7 +333,7 @@ class PREDLayout:
         """
         if exponent is None:
             exponent = self.DEFAULT_ATTRACTION_EXP
-            
+
         forces = np.zeros_like(self.positions)
         for u, v in self.G.edges():
             separation = self.positions[v] - self.positions[u]
@@ -342,12 +343,10 @@ class PREDLayout:
             forces[v] -= force
         return forces
 
-    def _calculate_node_repulsions(
-        self, exponent: float = None
-    ) -> np.array:
+    def _calculate_node_repulsions(self, exponent: float = None) -> np.array:
         """
         Calculate the forces due to node repulsions.
-        
+
         Nodes are repelled by all other nodes.
         This is given by the formula
         F(u, v) = delta^2/d(u, v)^2 * (x(v) - x(u))
@@ -420,7 +419,8 @@ class PREDLayout:
             separation = -proj_pos - self.positions[v]
 
             forces[v] += (
-                -(((gamma - distance_to_proj) ** exponent) /  distance_to_proj) * separation
+                -(((gamma - distance_to_proj) ** exponent) / distance_to_proj)
+                * separation
             )
         return forces
 
@@ -451,39 +451,42 @@ class PREDLayout:
                 angle = np.arctan2(node_to_pos_vec[1], node_to_pos_vec[0])
                 segment = calculate_segment(angle, self.num_zones)
 
-                v_indices = np.array([s_to_r(s)
-                                       for s in range(segment - 2,
-                                                      segment + 2 + 1)])
-                max_forces[v, v_indices] = np.minimum(max_forces[v, v_indices],
-                                                      distance_to_proj / 3.0)
+                v_indices = np.array(
+                    [s_to_r(s) for s in range(segment - 2, segment + 2 + 1)]
+                )
+                max_forces[v, v_indices] = np.minimum(
+                    max_forces[v, v_indices], distance_to_proj / 3.0
+                )
 
-                a_b_indices = np.array([s_to_r(s) for s in range(segment + 2,
-                                                                 segment + 6 + 1)])
-                max_forces[a, a_b_indices] = np.minimum(max_forces[a, a_b_indices],
-                                                      distance_to_proj / 3.0)
-                max_forces[b, a_b_indices] = np.minimum(max_forces[b, a_b_indices],
-                                                      distance_to_proj / 3.0)
+                a_b_indices = np.array(
+                    [s_to_r(s) for s in range(segment + 2, segment + 6 + 1)]
+                )
+                max_forces[a, a_b_indices] = np.minimum(
+                    max_forces[a, a_b_indices], distance_to_proj / 3.0
+                )
+                max_forces[b, a_b_indices] = np.minimum(
+                    max_forces[b, a_b_indices], distance_to_proj / 3.0
+                )
             else:
                 dist_to_a_3 = self._distances[v, a] / 3.0
                 dist_to_b_3 = self._distances[v, b] / 3.0
-                max_forces[v, :] = np.minimum(max_forces[v, :],
-                                          min(dist_to_a_3, dist_to_b_3))
-                max_forces[a, :] = np.minimum(max_forces[a, :],
-                                              dist_to_a_3)
-                max_forces[b, :] = np.minimum(max_forces[b, :],
-                                              dist_to_b_3)
+                max_forces[v, :] = np.minimum(
+                    max_forces[v, :], min(dist_to_a_3, dist_to_b_3)
+                )
+                max_forces[a, :] = np.minimum(max_forces[a, :], dist_to_a_3)
+                max_forces[b, :] = np.minimum(max_forces[b, :], dist_to_b_3)
 
         return max_forces
 
-    def _calculate_gravity(self, scaling_factor:float = 1.0):
+    def _calculate_gravity(self, scaling_factor: float = 1.0):
         """
         Attract all nodes to the centre of mass of the graph.
-        
+
         See
         Force-Directed Graph Drawing Using Social Gravity and Scaling
         Michael J. Bannister; David Eppstein; Michael T. Goodrich; Lowell Trott
         arXiv:1209.0748v1
-        
+
         Parameters
         ----------
         scaling_factor
@@ -494,14 +497,14 @@ class PREDLayout:
         forces
             the forces due to gravity
         """
-        
+
         # If no gravity, don't both calculating the barycentre.
         if scaling_factor == 0:
             return np.zeros_like(self.positions)
         barycentre = np.mean(self.positions, axis=0)
         forces = -scaling_factor * (barycentre - self.positions)
         return forces
-        
+
     def _calculate_forces(
         self,
         attraction_exp: Optional[float] = None,
@@ -533,7 +536,7 @@ class PREDLayout:
         forces += self._calculate_edge_repulsions(edge_exp)
 
         forces += self._calculate_gravity(self.gravity_force_scale)
-            
+
         # Apply the segment wise maximum forces.
         max_forces = self._calculate_max_forces()
         for node in self.G.nodes():
@@ -549,10 +552,10 @@ class PREDLayout:
     def update(
         self,
         step_size: float = 0.05,
-        attraction_exp:Optional[float] = None,
+        attraction_exp: Optional[float] = None,
         repulsion_exp: Optional[float] = None,
-        edge_exp:Optional[float] = None,
-        max_step: Optional[float] = None
+        edge_exp: Optional[float] = None,
+        max_step: Optional[float] = None,
     ) -> Dict[Node, Position]:
         """
         Run one iteration of the forces and update the positions.
@@ -571,13 +574,15 @@ class PREDLayout:
         """
         if max_step is None:
             max_step = np.inf
-            
+
         self._distances, self._node_pairs = calculate_neighbours(self.positions)
         self._virtual_nodes = self._precompute_virtual_nodes()
-        
-        forces = self._calculate_forces(attraction_exp=attraction_exp,
-                                        repulsion_exp=repulsion_exp,
-                                        edge_exp=edge_exp)
+
+        forces = self._calculate_forces(
+            attraction_exp=attraction_exp,
+            repulsion_exp=repulsion_exp,
+            edge_exp=edge_exp,
+        )
         delta_pos = np.clip(forces * step_size, -max_step, max_step)
         self.positions += delta_pos
         return self._positions_to_label_dict()
@@ -593,9 +598,9 @@ class PREDLayout:
     ):
         """
         Optimise the layout over a number of steps.
-        
+
         See ImPrEd paper, Section 4.4 "Force System Cooling"
-        
+
         Parameters
         ----------
         num_steps
@@ -609,11 +614,11 @@ class PREDLayout:
         repulsion_exp_minmax
             Change the attraction exponent linearly over num_steps, from
             max(repulsion_exp_minmax) to min(repulsion_exp_minmax).
-            Paper uses (2.0, 4.0)     
+            Paper uses (2.0, 4.0)
         max_step_minmax
-            Change the maximum amount a node can move by linearly 
+            Change the maximum amount a node can move by linearly
             from max(max_step_minmax) to min(max_step_minmax)
-            Paper uses (3.0*delta, 0.0)        
+            Paper uses (3.0*delta, 0.0)
         """
         last_stress = np.inf
         if attraction_exp_minmax is None:
@@ -643,13 +648,19 @@ class PREDLayout:
             )
 
         for step in range(num_steps):
-            print(attraction_exps[step], repulsion_exps[step], edge_exps[step],
-                  max_steps[step])
-            self.update(step_size=step_size,
-                        attraction_exp=attraction_exps[step],
-                        repulsion_exp=repulsion_exps[step],
-                        edge_exp=edge_exps[step],
-                        max_step=max_steps[step])
+            print(
+                attraction_exps[step],
+                repulsion_exps[step],
+                edge_exps[step],
+                max_steps[step],
+            )
+            self.update(
+                step_size=step_size,
+                attraction_exp=attraction_exps[step],
+                repulsion_exp=repulsion_exps[step],
+                edge_exp=edge_exps[step],
+                max_step=max_steps[step],
+            )
         return self._positions_to_label_dict()
 
 
@@ -666,16 +677,17 @@ def update(ax, graph, layout, num):
 if __name__ == "__main__":
     test_graph = nx.ladder_graph(10)
     test_graph = pkl.load(open("./edge_graph_1.pkl", "rb"))
-    layout = PREDLayout(test_graph, max_distance_to_virtual=1.0,
-                        gravity_force_scale=0.0)
+    layout = PREDLayout(
+        test_graph, max_distance_to_virtual=1.0, gravity_force_scale=0.0
+    )
     # pos = layout.anneal(repulsion_exp_minmax=(2, 2),
     #                     attraction_exp_minmax=(1.0, 1),
     #                     edge_exp_minmax=(2, 2),
     #                     max_step_minmax=(3, 0.0))
-    
+
     for i in range(1):
-         layout.update()
+        layout.update()
     fig, ax = plt.subplots()
     nx.draw(test_graph, pos=nx.planar_layout(test_graph), ax=ax)
-    #animation = mpl.animation.FuncAnimation(fig, lambda num: update(ax, test_graph, layout, num), frames=100, interval=16)
+    # animation = mpl.animation.FuncAnimation(fig, lambda num: update(ax, test_graph, layout, num), frames=100, interval=16)
     plt.show()
