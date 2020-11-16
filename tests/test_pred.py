@@ -7,12 +7,10 @@ Created on Thu Nov  5 15:06:12 2020
 
 import numpy as np
 import networkx as nx
-from pred import (
-    _project_onto_line,
-    calculate_segment,
-    calculate_neighbours,
-    calculate_faces,
-)
+
+from line_utils import _project_onto_line, calculate_segment, do_lines_intersect, line_orientation, OrientationResult
+
+from graph_utils import calculate_neighbours, calculate_faces, count_intersections
 
 
 class TestProjection:
@@ -138,3 +136,65 @@ class TestFindFaces:
         face_sizes = sorted([len(face) for face in faces])
         assert all([size == 3 for size in face_sizes[:-1]])
         assert face_sizes[-1] == 9
+
+class TestFindIntersections:
+    """
+    Make sure we correctly find intersections between graph edges.
+    """
+    def test_line_intersection(self):
+        p1, q1 = np.array([0, 0]), np.array([2, 0])
+        p2, q2 = np.array([1, 1]), np.array([1, -1])
+        assert line_orientation(p1, p2, q1) == OrientationResult.CLOCKWISE
+        assert line_orientation(p1, p2, q2) == OrientationResult.CLOCKWISE
+        assert line_orientation(q1, q2, p1) == OrientationResult.CLOCKWISE
+        assert line_orientation(q1, q2, p2) == OrientationResult.CLOCKWISE
+        assert do_lines_intersect(p1, q1, p2, q2)
+
+    def test_line_collinear_overlap(self):
+        p1, q1 = np.array([0, 0]), np.array([2, 0])
+        p2, q2 = np.array([1, 0]), np.array([3, 0])
+
+        assert line_orientation(p1, p2, q1) == OrientationResult.COLLINEAR
+        assert line_orientation(p1, p2, q2) == OrientationResult.COLLINEAR
+        assert line_orientation(q1, q2, q1) == OrientationResult.COLLINEAR
+        assert line_orientation(q1, q2, q2) == OrientationResult.COLLINEAR
+
+        assert do_lines_intersect(p1, q1, p2, q2)
+
+    def test_line_collinear_no_overlap(self):
+        p1, q1 = np.array([0, 0]), np.array([2, 0])
+        p2, q2 = np.array([5, 0]), np.array([10, 0])
+
+        assert line_orientation(p1, p2, q1) == OrientationResult.COLLINEAR
+        assert line_orientation(p1, p2, q2) == OrientationResult.COLLINEAR
+        assert line_orientation(q1, q2, q1) == OrientationResult.COLLINEAR
+        assert line_orientation(q1, q2, q2) == OrientationResult.COLLINEAR
+
+        assert not do_lines_intersect(p1, q1, p2, q2)
+
+    def test_ladder_graph(self):
+        G = nx.ladder_graph(20)
+        pos = nx.planar_layout(G)
+        num_intersections = count_intersections(G, pos)
+        assert num_intersections == 0
+
+    def test_wheel_graph(self):
+        G = nx.wheel_graph(20)
+        pos = nx.planar_layout(G)
+        num_intersections = count_intersections(G, pos)
+        assert num_intersections == 0
+
+    def test_petersen_graph(self):
+        G = nx.petersen_graph()
+        petersen_pos = {0: [0, -2],
+                    1: [-2, 0],
+                    2: [-2, 2],
+                    3: [2, 2],
+                    4: [2, 0],
+                    5: [0, -1],
+                    6: [-1, 0],
+                    7: [-1, 1],
+                    8: [1, 1],
+                    9: [1, 0]}
+        num_intersections = count_intersections(G, petersen_pos)
+        assert num_intersections == 5
